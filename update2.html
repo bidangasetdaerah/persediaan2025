@@ -20,7 +20,6 @@
   <!-- ===== HEADER ===== -->
   <header class="bg-blue-700 text-white w-full py-4 sm:py-6 shadow-lg flex flex-col sm:flex-row items-center justify-between px-4 sm:px-8">
     <div class="flex items-center gap-3">
-      <!-- Ganti URL logo di bawah dengan logo instansi kamu -->
       <img src="https://upload.wikimedia.org/wikipedia/commons/9/9f/Logo_Kementerian_Keuangan_Republik_Indonesia.png" alt="Logo Instansi" class="h-12 sm:h-14">
       <div>
         <h1 class="text-lg sm:text-2xl font-bold leading-tight">Pemerintah Kabupaten Donggala</h1>
@@ -34,16 +33,12 @@
 
   <!-- ===== MAIN CONTENT ===== -->
   <main class="flex-grow w-full max-w-6xl mt-4 sm:mt-8 bg-white shadow-md rounded-lg p-4 sm:p-6">
-    <!-- Info jumlah dokumen -->
     <p id="infoJumlah" class="mb-1 text-sm font-medium text-gray-700"></p>
-    <!-- Jumlah total saldo -->
     <p id="totalSaldo" class="mb-4 text-sm font-semibold text-gray-900"></p>
 
-    <!-- Pencarian -->
     <input type="text" id="searchBox" placeholder="Cari Nama OPD..." 
       class="border rounded p-2 text-sm sm:text-base w-full sm:w-64 mb-4" oninput="applyFilters()"/>
 
-    <!-- Tabel Desktop -->
     <table class="table-auto w-full border-collapse border border-gray-300 text-sm sm:text-base">
       <thead class="bg-gray-200">
         <tr>
@@ -56,10 +51,8 @@
       <tbody id="tabelData"></tbody>
     </table>
 
-    <!-- Card List Mobile -->
     <div id="cardList" class="card-list space-y-4"></div>
 
-    <!-- Pagination -->
     <div class="flex justify-center items-center gap-2 mt-4">
       <button id="prevBtn" onclick="prevPage()" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm">Prev</button>
       <span id="pageInfo" class="text-sm"></span>
@@ -79,10 +72,9 @@ let allData = [];
 let filteredData = [];
 let currentPage = 1;
 const rowsPerPage = 15;
-
 document.getElementById("year").textContent = new Date().getFullYear();
 
-// ✅ Fungsi format Rupiah
+// ✅ Format angka jadi Rupiah
 function formatRupiah(angka) {
   if (angka === null || angka === undefined || angka === "") return "-";
   const num = parseFloat(String(angka).replace(/[^0-9,.-]/g, "").replace(",", "."));
@@ -103,9 +95,10 @@ function fileToBase64(file) {
   });
 }
 
+// ✅ Load data dari Google Apps Script
 async function loadData() {
   try {
-    const res = await fetch(`${WEB_APP_URL}?action=getAploudData`);
+    const res = await fetch(`${WEB_APP_URL}?action=getAploudData&_=${Date.now()}`); // cache-buster
     allData = await res.json();
     filteredData = allData;
     renderTable();
@@ -113,6 +106,9 @@ async function loadData() {
     console.error("Gagal load data:", err);
   }
 }
+
+// ✅ Auto-refresh data setiap 30 detik
+setInterval(loadData, 30000);
 
 function applyFilters() {
   const keyword = document.getElementById('searchBox').value.toLowerCase();
@@ -135,7 +131,6 @@ function renderTable() {
     const sudahUpload = item.dokumen && item.dokumen.startsWith("http");
     const saldoFormatted = formatRupiah(item.saldoAwal2025);
 
-    // Baris tabel
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="border p-2">${item.namaOPD}</td>
@@ -155,7 +150,6 @@ function renderTable() {
     `;
     tabel.appendChild(tr);
 
-    // Card mobile
     const card = document.createElement('div');
     card.className = "border rounded-lg p-3 shadow-sm";
     card.innerHTML = `
@@ -184,7 +178,6 @@ function renderTable() {
   document.getElementById('infoJumlah').textContent = 
     `Jumlah dokumen terisi: ${totalUpload} dari ${allData.length} OPD`;
 
-  // ✅ Hitung total saldo semua OPD dan tampilkan
   const totalSaldo = allData.reduce((sum, d) => {
     const val = parseFloat(String(d.saldoAwal2025).replace(/[^0-9,.-]/g, "").replace(",", "."));
     return sum + (isNaN(val) ? 0 : val);
@@ -195,20 +188,14 @@ function renderTable() {
 }
 
 function prevPage() {
-  if (currentPage > 1) {
-    currentPage--;
-    renderTable();
-  }
+  if (currentPage > 1) { currentPage--; renderTable(); }
 }
-
 function nextPage() {
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-  if (currentPage < totalPages) {
-    currentPage++;
-    renderTable();
-  }
+  if (currentPage < totalPages) { currentPage++; renderTable(); }
 }
 
+// ✅ Upload File dan langsung refresh data setelah sukses
 async function uploadFileOPD(namaOPD) {
   const fileInput = document.getElementById(`file-${namaOPD}`);
   const status = document.getElementById(`status-${namaOPD}`);
@@ -216,8 +203,8 @@ async function uploadFileOPD(namaOPD) {
     alert("Pilih file terlebih dahulu!");
     return;
   }
-
   status.textContent = "Mengunggah...";
+
   try {
     const file = fileInput.files[0];
     const base64 = await fileToBase64(file);
@@ -236,13 +223,8 @@ async function uploadFileOPD(namaOPD) {
 
     if (result.success) {
       status.innerHTML = `Upload berhasil! <a href="${result.fileUrl}" target="_blank" class="text-blue-600 underline">Lihat file</a>`;
-      fileInput.disabled = true;
-      const btn = fileInput.nextElementSibling;
-      btn.disabled = true;
-      btn.className = "px-2 py-1 rounded text-xs bg-gray-400 cursor-not-allowed text-white";
-      const opdData = allData.find(d => d.namaOPD === namaOPD);
-      if (opdData) opdData.dokumen = result.fileUrl;
-      applyFilters();
+      // ✅ Refresh data langsung setelah upload berhasil
+      await loadData();
     } else {
       status.textContent = "Gagal upload: " + result.message;
     }
